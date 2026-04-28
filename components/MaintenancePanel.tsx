@@ -4,7 +4,6 @@ import {
   ShieldCheck, RefreshCw, Clock, Lock, Unlock, Download, Upload, Database, ExternalLink, Camera, Sparkles,
   CalendarDays, CalendarRange, History
 } from 'lucide-react';
-import { getCloudBackups, createCloudBackup } from '../services/firebase';
 import { format, differenceInDays } from 'date-fns';
 
 interface Props {
@@ -18,11 +17,11 @@ export const MaintenancePanel: React.FC<Props> = ({ data, onUpdate }) => {
   const [creatingBackup, setCreatingBackup] = useState(false);
   const [activeTab, setActiveTab] = useState<'Backups' | 'Safety' | 'Locks'>('Backups');
 
-  const FIREBASE_CONSOLE_URL = "https://console.firebase.google.com/project/dps-staff-portal/firestore/data";
-
   const fetchBackups = async () => {
     setLoading(true);
-    const list = await getCloudBackups();
+    // Simulate getting backups
+    const listRaw = localStorage.getItem('dps_local_backups');
+    const list = listRaw ? JSON.parse(listRaw) : [];
     setBackups(list);
     setLoading(false);
   };
@@ -57,7 +56,19 @@ export const MaintenancePanel: React.FC<Props> = ({ data, onUpdate }) => {
     if (creatingBackup) return;
     setCreatingBackup(true);
     try {
-        await createCloudBackup(data, 'Manual');
+        const newBackup = {
+            id: Date.now().toString(),
+            timestamp: new Date().toISOString(),
+            data,
+            type: 'Manual',
+            size: JSON.stringify(data).length
+        };
+        const currentListRaw = localStorage.getItem('dps_local_backups');
+        const currentList = currentListRaw ? JSON.parse(currentListRaw) : [];
+        if (currentList.length > 20) {
+            currentList.length = 20; // Keep only 20 backups
+        }
+        localStorage.setItem('dps_local_backups', JSON.stringify([newBackup, ...currentList]));
         await fetchBackups();
         alert("Manual Snapshot created successfully!");
     } catch (err) {
@@ -237,27 +248,6 @@ export const MaintenancePanel: React.FC<Props> = ({ data, onUpdate }) => {
                                     </div>
                                 </div>
                             ))}
-                        </div>
-
-                        {/* Direct Link to Firebase */}
-                        <div className="bg-indigo-50 border border-indigo-200 p-6 rounded-[30px] flex items-center justify-between mt-8">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-100">
-                                    <Database size={24} />
-                                </div>
-                                <div>
-                                    <h4 className="font-black text-indigo-900 uppercase text-sm">Deep Cloud Infrastructure</h4>
-                                    <p className="text-xs text-indigo-700 font-medium">Access master database snapshots directly in Google Firebase.</p>
-                                </div>
-                            </div>
-                            <a 
-                                href={FIREBASE_CONSOLE_URL} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-indigo-500/20 flex items-center gap-2 hover:bg-indigo-700 transition-all"
-                            >
-                                Open Cloud Console <ExternalLink size={14} />
-                            </a>
                         </div>
                     </div>
                 </div>

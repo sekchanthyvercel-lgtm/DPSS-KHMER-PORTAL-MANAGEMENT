@@ -192,47 +192,54 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!currentUser) return;
-    const unsubscribe = subscribeToData((newData) => {
-      // Ensure DEFAULT_COLUMNS are initialized
-      if (!newData.settings?.columns) {
-          newData.settings = { ...(newData.settings || { fontSize: 12, fontFamily: "'Inter', sans-serif" }), columns: DEFAULT_COLUMNS };
-      } else {
-        // Migration: Remove redundant 'name' or 'Full Name' column if it exists in settings
-        const filteredCols = newData.settings.columns.filter((c: any) => 
-          c.key !== 'name' && c.label?.toUpperCase() !== 'FULL NAME'
-        );
-        if (filteredCols.length !== newData.settings.columns.length) {
-          newData.settings.columns = filteredCols;
-        }
-
-        // Migration: Ensure 'schedule' column exists if missing
-        const hasSchedule = newData.settings.columns.some((c: any) => c.key === 'schedule');
-        if (!hasSchedule) {
-          const newCols = [...newData.settings.columns];
-          // Try to insert after behavior or before time
-          const behaviorIdx = newCols.findIndex((c: any) => c.key === 'behavior');
-          if (behaviorIdx !== -1) {
-            newCols.splice(behaviorIdx + 1, 0, DEFAULT_COLUMNS.find(c => c.key === 'schedule')!);
-          } else {
-            newCols.push(DEFAULT_COLUMNS.find(c => c.key === 'schedule')!);
+    
+    // Load from local storage directly
+    const rawLocalData = localStorage.getItem('dps_app_data');
+    if (rawLocalData) {
+      try {
+        const newData = JSON.parse(rawLocalData);
+        // Ensure DEFAULT_COLUMNS are initialized
+        if (!newData.settings?.columns) {
+            newData.settings = { ...(newData.settings || { fontSize: 12, fontFamily: "'Inter', sans-serif" }), columns: DEFAULT_COLUMNS };
+        } else {
+          // Migration: Remove redundant 'name' or 'Full Name' column if it exists in settings
+          const filteredCols = newData.settings.columns.filter((c: any) => 
+            c.key !== 'name' && c.label?.toUpperCase() !== 'FULL NAME'
+          );
+          if (filteredCols.length !== newData.settings.columns.length) {
+            newData.settings.columns = filteredCols;
           }
-          newData.settings.columns = newCols;
-        }
 
-        // Migration: Reorder 'assistant' between 'teachers' and 'level' if it is at the end
-        const assistantIdx = newData.settings.columns.findIndex((c: any) => c.key === 'assistant');
-        const teachersIdx = newData.settings.columns.findIndex((c: any) => c.key === 'teachers');
-        if (assistantIdx !== -1 && teachersIdx !== -1 && assistantIdx > teachersIdx + 1) {
-          const newCols = [...newData.settings.columns];
-          const [assistantCol] = newCols.splice(assistantIdx, 1);
-          newCols.splice(teachersIdx + 1, 0, assistantCol);
-          newData.settings.columns = newCols;
+          // Migration: Ensure 'schedule' column exists if missing
+          const hasSchedule = newData.settings.columns.some((c: any) => c.key === 'schedule');
+          if (!hasSchedule) {
+            const newCols = [...newData.settings.columns];
+            // Try to insert after behavior or before time
+            const behaviorIdx = newCols.findIndex((c: any) => c.key === 'behavior');
+            if (behaviorIdx !== -1) {
+              newCols.splice(behaviorIdx + 1, 0, DEFAULT_COLUMNS.find(c => c.key === 'schedule')!);
+            } else {
+              newCols.push(DEFAULT_COLUMNS.find(c => c.key === 'schedule')!);
+            }
+            newData.settings.columns = newCols;
+          }
+
+          // Migration: Reorder 'assistant' between 'teachers' and 'level' if it is at the end
+          const assistantIdx = newData.settings.columns.findIndex((c: any) => c.key === 'assistant');
+          const teachersIdx = newData.settings.columns.findIndex((c: any) => c.key === 'teachers');
+          if (assistantIdx !== -1 && teachersIdx !== -1 && assistantIdx > teachersIdx + 1) {
+            const newCols = [...newData.settings.columns];
+            const [assistantCol] = newCols.splice(assistantIdx, 1);
+            newCols.splice(teachersIdx + 1, 0, assistantCol);
+            newData.settings.columns = newCols;
+          }
         }
+        setData(newData);
+      } catch (e) {
+        console.error("Error parsing local data", e);
       }
-      setData(newData);
-      setLoading(false);
-    }, () => setLoading(false));
-    return () => unsubscribe();
+    }
+    setLoading(false);
   }, [currentUser]);
 
   const handleUpdate = (newData: AppData, skipHistory = false) => {
@@ -241,7 +248,7 @@ const App: React.FC = () => {
         setRedoStack([]);
       }
       setData(newData);
-      saveData(newData);
+      localStorage.setItem('dps_app_data', JSON.stringify(newData));
   };
 
   const undo = () => {
